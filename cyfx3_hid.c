@@ -36,250 +36,10 @@
 #include "cyfx3_hid.h"
 
 CyU3PThread            UsbHidAppThread;             /* HID application thread structure */
-static CyU3PEvent      glHidAppEvent;               /* HID application Event group */
 static CyU3PDmaChannel glChHandleIntrCPU2U;         /* DMA Channel handle */
+static CyU3PDmaChannel glChHandleIntrU2CPU;         /* DMA Channel handle */
 static uint32_t        glButtonPress = 0;           /* Button Press Counter */
 static CyBool_t        glIsApplnActive = CyFalse;   /* HID application Active Flag */
-
-/* Static table containing pre-computed co-ordinates that make the mouse cursor circumscribe a circle. */
-static const uint8_t glMouseData[472] = {    
-    0x00, 0xF7,          
-    0x01, 0xFA,         
-    0x01, 0xFC,         
-    0x01, 0xFD,         
-    0x01, 0xFD,         
-    0x01, 0xFD,         
-    0x01, 0xFD,         
-    0x01, 0xFC,         
-    0x01, 0xFE,          
-    0x01, 0xFF,          
-    0x01, 0xFE,          
-    0x01, 0xFE,          
-    0x01, 0xFE,          
-    0x01, 0xFE,          
-    0x01, 0xFE,          
-    0x01, 0xFF,          
-    0x01, 0xFE,          
-    0x01, 0xFF,          
-    0x01, 0xFE,          
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x01, 0xFE,          
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x01, 0xFE,          
-    0x01, 0xFF,          //1st Arc
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x02, 0xFF,          
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x01, 0xFF,          
-    0x02, 0xFF,          
-    0x01, 0xFF,          
-    0x02, 0xFF,          
-    0x02, 0xFF,          
-    0x01, 0xFF,          
-    0x02, 0xFF,          
-    0x02, 0xFF,          
-    0x02, 0xFF,          
-    0x02, 0xFF,          
-    0x02, 0xFF,          
-    0x02, 0xFF,          
-    0x03, 0xFF,          
-    0x03, 0xFF,          
-    0x03, 0xFF,          
-    0x04, 0xFF,          
-    0x03, 0xFF,          
-    0x04, 0xFF,          
-    0x07, 0xFF,          
-    0x09, 0xFF,          //2nd Arc, 1st Quarter
-    0x09, 0x01,          
-    0x07, 0x01,          
-    0x04, 0x01,          
-    0x03, 0x01,          
-    0x04, 0x01,          
-    0x03, 0x01,          
-    0x03, 0x01,          
-    0x03, 0x01,          
-    0x02, 0x01,          
-    0x02, 0x01,          
-    0x02, 0x01,          
-    0x02, 0x01,          
-    0x02, 0x01,          
-    0x02, 0x01,          
-    0x01, 0x01,          
-    0x02, 0x01,          
-    0x02, 0x01,          
-    0x01, 0x01,          
-    0x02, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x01,          
-    0x02, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x01,          //3nd Arc
-    0x01, 0x01,          
-    0x01, 0x02,          
-    0x01, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x02,          
-    0x01, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x01,          
-    0x01, 0x02,          
-    0x01, 0x01,          
-    0x01, 0x02,          
-    0x01, 0x01,          
-    0x01, 0x02,          
-    0x01, 0x02,          
-    0x01, 0x02,          
-    0x01, 0x02,          
-    0x01, 0x02,          
-    0x01, 0x01,          
-    0x01, 0x02,          
-    0x01, 0x04,          
-    0x01, 0x03,          
-    0x01, 0x03,          
-    0x01, 0x03,          
-    0x01, 0x03,          
-    0x01, 0x04,          
-    0x01, 0x05,          
-    0x01, 0x09,          //4rt Arc, 2nd Quarter, Semi Circle
-    0xFF, 0x09,          
-    0xFF, 0x05,          
-    0xFF, 0x04,          
-    0xFF, 0x03,          
-    0xFF, 0x03,          
-    0xFF, 0x03,          
-    0xFF, 0x03,          
-    0xFF, 0x04,          
-    0xFF, 0x02,          
-    0xFF, 0x01,          
-    0xFF, 0x02,          
-    0xFF, 0x02,          
-    0xFF, 0x02,          
-    0xFF, 0x02,          
-    0xFF, 0x02,          
-    0xFF, 0x01,          
-    0xFF, 0x02,          
-    0xFF, 0x01,          
-    0xFF, 0x02,          
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFF, 0x02,          
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFF, 0x02,          
-    0xFF, 0x01,          //5th Arc
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFE, 0x01,          
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFF, 0x01,          
-    0xFE, 0x01,          
-    0xFF, 0x01,          
-    0xFE, 0x01,          
-    0xFE, 0x01,          
-    0xFF, 0x01,          
-    0xFE, 0x01,          
-    0xFE, 0x01,          
-    0xFE, 0x01,          
-    0xFE, 0x01,          
-    0xFE, 0x01,          
-    0xFE, 0x01,          
-    0xFD, 0x01,         
-    0xFD, 0x01,         
-    0xFD, 0x01,         
-    0xFC, 0x01,         
-    0xFD, 0x01,         
-    0xFC, 0x01,         
-    0xFA, 0x01,         
-    0xF7, 0x01,          //6th Arc, 3rd Quarter
-    0xF7, 0x00,          
-    0xFA, 0xFF,         
-    0xFB, 0xFF,         
-    0xFD, 0xFF,         
-    0xFC, 0xFF,         
-    0xFD, 0xFF,         
-    0xFD, 0xFF,         
-    0xFD, 0xFF,         
-    0xFE, 0xFF,          
-    0xFE, 0xFF,          
-    0xFE, 0xFF,          
-    0xFE, 0xFF,          
-    0xFE, 0xFF,          
-    0xFE, 0xFF,          
-    0xFF, 0xFF,          
-    0xFE, 0xFF,          
-    0xFE, 0xFF,          
-    0xFF, 0xFF,          
-    0xFE, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          
-    0xFE, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          //7th Arc
-    0xFF, 0xFF,          
-    0xFF, 0xFE,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFE,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFF,          
-    0xFF, 0xFE,          
-    0xFF, 0xFF,          
-    0xFF, 0xFE,          
-    0xFF, 0xFF,          
-    0xFF, 0xFE,          
-    0xFF, 0xFE,          
-    0xFF, 0xFE,          
-    0xFF, 0xFE,          
-    0xFF, 0xFE,          
-    0xFF, 0xFF,          
-    0xFF, 0xFE,          
-    0xFF, 0xFC,         
-    0xFF, 0xFD,         
-    0xFF, 0xFD,         
-    0xFF, 0xFD,         
-    0xFF, 0xFD,         
-    0xFF, 0xFC,         
-    0xFF, 0xFB,         
-    0xFF, 0xF7          //8th Arc, 3rd Quarter, Circle
-};
 
 
 /* Application Error Handler */
@@ -297,31 +57,6 @@ CyFxAppErrorHandler (
     {
         /* Thread sleep : 100 ms */
         CyU3PThreadSleep (100);
-    }
-}
-
-/* Callback for GPIO related interrupts */
-void 
-CyFxHidGpioIntrCb (
-        uint8_t gpioId
-        )
-{
-    CyBool_t gpioValue = CyFalse;
-    CyU3PReturnStatus_t apiRetStatus = CY_U3P_SUCCESS;
-
-    if (gpioId == CY_FX_BUTTON_GPIO)
-    {
-        apiRetStatus = CyU3PGpioGetValue (gpioId, &gpioValue);
-        if (apiRetStatus == CY_U3P_SUCCESS)
-        {
-            /* Check status of the pin */
-            if (gpioValue == CyFalse)
-            {
-                glButtonPress++;
-                CyU3PEventSet(&glHidAppEvent, CY_FX_APP_GPIO_INTR_CB_EVENT_FLAG,
-                                        CYU3P_EVENT_OR);
-            }
-        }
     }
 }
 
@@ -378,56 +113,6 @@ CyFxUsbHidApplnDebugInit (
 }
 
 
-/* Function to Initialize Switch */
-void
-CyFxHidApplnGpioInit (
-        void)
-{
-    CyU3PReturnStatus_t  status;
-    CyU3PGpioClock_t     gpioClock;
-    CyU3PGpioSimpleConfig_t gpioConfig;
-
-    /* GPIO module needs to be initialized. This is required because
-       GPIO CY_FX_BUTTON_GPIO is used as mouse Left Click. */
-    gpioClock.fastClkDiv = 2;
-    gpioClock.slowClkDiv = 16;
-    gpioClock.simpleDiv  = CY_U3P_GPIO_SIMPLE_DIV_BY_2;
-    gpioClock.clkSrc     = CY_U3P_SYS_CLK;
-    gpioClock.halfDiv    = 0;
-
-    status = CyU3PGpioInit (&gpioClock, CyFxHidGpioIntrCb);
-    if (status != CY_U3P_SUCCESS)
-    {
-        CyU3PDebugPrint (4, "GPIO Init failed, code=%d\r\n", status);
-        CyFxAppErrorHandler (status);
-    }
-
-    /* Override CY_FX_BUTTON_GPIO as a simple GPIO. */
-    status = CyU3PDeviceGpioOverride (CY_FX_BUTTON_GPIO, CyTrue);
-    if (status != CY_U3P_SUCCESS)
-    {
-        /* Error handling */
-        CyU3PDebugPrint (4, "GPIO Override Failed, code=%d\r\n", status);
-        CyFxAppErrorHandler(status);
-    }
-
-    /* Configure GPIO CY_FX_BUTTON_GPIO to trigger interrupt on falling edge. */
-    gpioConfig.outValue    = CyFalse;
-    gpioConfig.inputEn     = CyTrue;
-    gpioConfig.driveLowEn  = CyFalse;
-    gpioConfig.driveHighEn = CyFalse;
-    gpioConfig.intrMode    = CY_U3P_GPIO_INTR_NEG_EDGE;
-
-    status = CyU3PGpioSetSimpleConfig(CY_FX_BUTTON_GPIO, &gpioConfig);
-    if (status != CY_U3P_SUCCESS)
-    {
-        /* Error handling */
-        CyU3PDebugPrint (4, "GPIO Config Failed, code=%d\r\n", status);
-        CyFxAppErrorHandler(status);
-    }
-}
-
-
 /* This function starts the HID application. This is called
  * when a SET_CONF event is received from the USB host. The endpoints
  * are configured and the DMA pipe is setup in this function. */
@@ -454,7 +139,21 @@ CyFxUsbHidApplnStart (
         CyFxAppErrorHandler (apiRetStatus);
     }
 
-    CyFxHidApplnGpioInit ();
+    CyU3PMemSet ((uint8_t *)&epCfg, 0, sizeof (epCfg));
+    epCfg.enable   = CyTrue;
+    epCfg.epType   = CY_U3P_USB_EP_INTR;
+    epCfg.burstLen = 1;
+    epCfg.streams  = 0;
+    epCfg.pcktSize = size;
+
+    apiRetStatus = CyU3PSetEpConfig (CY_FX_HID_EP_INTR_OUT, &epCfg);
+    if (apiRetStatus != CY_U3P_SUCCESS)
+    {
+        CyU3PDebugPrint (4, "CyU3PSetEpConfig failed, Error code = %d\n", apiRetStatus);
+        CyFxAppErrorHandler (apiRetStatus);
+    }
+
+    //CyFxHidApplnGpioInit ();
 
     dmaCfg.size           = size;
     dmaCfg.count          = CY_FX_HID_DMA_BUF_COUNT;
@@ -476,12 +175,33 @@ CyFxUsbHidApplnStart (
         CyFxAppErrorHandler(apiRetStatus);
     }
 
+    dmaCfg.size           = size;
+    dmaCfg.count          = CY_FX_HID_DMA_BUF_COUNT;
+    dmaCfg.prodSckId      = CY_U3P_UIB_SOCKET_PROD_1;
+    dmaCfg.consSckId      = (CyU3PDmaSocketId_t) CY_U3P_CPU_SOCKET_CONS;
+    dmaCfg.dmaMode        = CY_U3P_DMA_MODE_BYTE;
+    dmaCfg.notification   = 0;
+    dmaCfg.cb             = NULL;
+    dmaCfg.prodHeader     = 0;
+    dmaCfg.prodFooter     = 0;
+    dmaCfg.consHeader     = 0;
+    dmaCfg.prodAvailCount = 0;
+
+    apiRetStatus = CyU3PDmaChannelCreate (&glChHandleIntrU2CPU,
+            CY_U3P_DMA_TYPE_MANUAL_IN, &dmaCfg);
+    if (apiRetStatus != CY_U3P_SUCCESS)
+    {
+        CyU3PDebugPrint (4, "CyU3PDmaChannelCreate failed, Error code = %d\n", apiRetStatus);
+        CyFxAppErrorHandler(apiRetStatus);
+    }
+
+
     /* Set Channel for Infinite Transfer */
     CyU3PDmaChannelSetXfer (&glChHandleIntrCPU2U, 0);
-
+    CyU3PDmaChannelSetXfer (&glChHandleIntrU2CPU, 0);
     /* Flush the Endpoint memory */
     CyU3PUsbFlushEp(CY_FX_HID_EP_INTR_IN);
-
+    CyU3PUsbFlushEp(CY_FX_HID_EP_INTR_OUT);
     /* Update the status flag. */
     glIsApplnActive = CyTrue;
 }
@@ -501,9 +221,10 @@ CyFxUsbHidApplnStop (
 
     /* Flush the endpoint memory */
     CyU3PUsbFlushEp(CY_FX_HID_EP_INTR_IN);
-
+    CyU3PUsbFlushEp(CY_FX_HID_EP_INTR_OUT);
     /* Destroy the channel */
     CyU3PDmaChannelDestroy (&glChHandleIntrCPU2U);
+    CyU3PDmaChannelDestroy (&glChHandleIntrU2CPU);
 
     /* Disable endpoints. */
     CyU3PMemSet ((uint8_t *)&epCfg, 0, sizeof (epCfg));
@@ -516,7 +237,12 @@ CyFxUsbHidApplnStop (
         CyU3PDebugPrint (4, "CyU3PSetEpConfig failed, Error code = %d\n", apiRetStatus);
         CyFxAppErrorHandler (apiRetStatus);
     }
-
+    apiRetStatus = CyU3PSetEpConfig(CY_FX_HID_EP_INTR_OUT, &epCfg);
+    if (apiRetStatus != CY_U3P_SUCCESS)
+    {
+        CyU3PDebugPrint (4, "CyU3PSetEpConfig failed, Error code = %d\n", apiRetStatus);
+        CyFxAppErrorHandler (apiRetStatus);
+    }
     /* De-Activate GPIO Block */
     apiRetStatus = CyU3PGpioDeInit ();
     if (apiRetStatus != CY_U3P_SUCCESS)
@@ -538,14 +264,12 @@ CyFxHidSendReport (
 
     outBuf.buffer = 0;
     outBuf.status = 0;
-    outBuf.size   = 2;
-    outBuf.count  = 2;
+    outBuf.size   = 64;
+    outBuf.count  = 64;
 
     CyU3PDebugPrint (4, "Input Report \r\n");
 
-    /* Loop until whole data is sent to Host */
-    do
-    {
+
         /* Retrieve Free Buffer */
         status = CyU3PDmaChannelGetBuffer (&glChHandleIntrCPU2U, &outBuf, 1000);
         if (status != CY_U3P_SUCCESS)
@@ -557,23 +281,86 @@ CyFxHidSendReport (
             if (status != CY_U3P_SUCCESS)
                 return status;
         }
+        else
+        {
                 
         /* Copy Report Data into the output buffer */
-        outBuf.buffer[0] = (uint8_t)(glMouseData[i]);
-        outBuf.buffer[1] = (uint8_t)(glMouseData[i + 1]);        
-        status = CyU3PDmaChannelCommitBuffer (&glChHandleIntrCPU2U, 2, 0);
+        outBuf.buffer[0] = 0x30;
+        outBuf.buffer[1] = 0x22;
+        outBuf.buffer[2] = 0x91;
+        outBuf.buffer[3] = 0x00;
+        outBuf.buffer[4] = 0x80;
+        outBuf.buffer[5] = 0x00;
+        outBuf.buffer[6] = 0x48;
+        outBuf.buffer[7] = 0xA8;
+        outBuf.buffer[8] = 0x86;
+        outBuf.buffer[9] = 0x06;
+        outBuf.buffer[10] = 0x38;
+        outBuf.buffer[11] = 0x77;
+        outBuf.buffer[12] = 0x02;
+        outBuf.buffer[13] = 0x88;
+        outBuf.buffer[14] = 0x01;
+        outBuf.buffer[15] = 0x75;
+        outBuf.buffer[16] = 0x05;
+        outBuf.buffer[17] = 0x90;
+        outBuf.buffer[18] = 0x0E;
+        outBuf.buffer[19] = 0xF0;
+        outBuf.buffer[20] = 0xFF;
+        outBuf.buffer[21] = 0xED;
+        outBuf.buffer[22] = 0xFF;
+        outBuf.buffer[23] = 0x49;
+        outBuf.buffer[24] = 0x00;
+        outBuf.buffer[25] = 0x89;
+        outBuf.buffer[26] = 0x01;
+        outBuf.buffer[27] = 0x7D;
+        outBuf.buffer[28] = 0x05;
+        outBuf.buffer[29] = 0x93;
+        outBuf.buffer[30] = 0x0E;
+        outBuf.buffer[31] = 0xEE;
+        outBuf.buffer[32] = 0xFF;
+        outBuf.buffer[33] = 0xED;
+        outBuf.buffer[34] = 0xFF;
+        outBuf.buffer[35] = 0x47;
+        outBuf.buffer[36] = 0x00;
+        outBuf.buffer[37] = 0x84;
+        outBuf.buffer[38] = 0x01;
+        outBuf.buffer[39] = 0x89;
+        outBuf.buffer[40] = 0x05;
+        outBuf.buffer[41] = 0x9C;
+        outBuf.buffer[42] = 0x0E;
+        outBuf.buffer[43] = 0xED;
+        outBuf.buffer[44] = 0xFF;
+        outBuf.buffer[45] = 0xEB;
+        outBuf.buffer[46] = 0xFF;
+        outBuf.buffer[47] = 0x45;
+        outBuf.buffer[48] = 0x00;
+        outBuf.buffer[49] = 0x00;
+        outBuf.buffer[50] = 0x00;
+        outBuf.buffer[51] = 0x00;
+        outBuf.buffer[52] = 0x00;
+        outBuf.buffer[53] = 0x00;
+        outBuf.buffer[54] = 0x00;
+        outBuf.buffer[55] = 0x00;
+        outBuf.buffer[56] = 0x00;
+        outBuf.buffer[57] = 0x00;
+        outBuf.buffer[58] = 0x00;
+        outBuf.buffer[59] = 0x00;
+        outBuf.buffer[60] = 0x00;
+        outBuf.buffer[61] = 0x00;
+        outBuf.buffer[62] = 0x00;
+        outBuf.buffer[63] = 0x00;
+
+        status = CyU3PDmaChannelCommitBuffer (&glChHandleIntrCPU2U, 64, 0);
         if (status != CY_U3P_SUCCESS)
         {
             CyU3PDmaChannelReset (&glChHandleIntrCPU2U);
             CyU3PDmaChannelSetXfer (&glChHandleIntrCPU2U, 0);
         }
-
+        }
         /* Wait for 2 msec after sending each packet */
         CyU3PDebugPrint (4, "Packet %d Status %d\r\n", i, status);                
-        CyU3PBusyWait (2000);
+        CyU3PBusyWait (16000);
 
-        i += 2;
-    }while (i != 472);
 
     return status;
 }
@@ -732,13 +519,6 @@ CyFxUsbHidApplnInit (
 {
     CyU3PReturnStatus_t apiRetStatus = CY_U3P_SUCCESS;
 
-    /* Create FX MSC events */
-    apiRetStatus = CyU3PEventCreate (&glHidAppEvent);
-    if (apiRetStatus != 0)
-    {
-        CyU3PDebugPrint (4, "Event Creation Failed, Error Code = %d\r\n", apiRetStatus);
-        CyFxAppErrorHandler(apiRetStatus);
-    }
 
     /* Start the USB functionality. */
     apiRetStatus = CyU3PUsbStart();
@@ -859,9 +639,7 @@ void
 Fx3HidAppThread_Entry (
         uint32_t input)
 {
-    uint32_t evMask = CY_FX_APP_GPIO_INTR_CB_EVENT_FLAG;
-    uint32_t evStat;
-    CyU3PReturnStatus_t status;
+    //CyU3PReturnStatus_t status;
 
     /* Initialize the debug module */
     CyFxUsbHidApplnDebugInit();
@@ -873,26 +651,9 @@ Fx3HidAppThread_Entry (
 
     for (;;)
     {
-        status = CyU3PEventGet (&glHidAppEvent, evMask, CYU3P_EVENT_OR_CLEAR, &evStat, CYU3P_WAIT_FOREVER);
-        if (status == CY_U3P_SUCCESS)
-        {
-            if ((evStat & CY_FX_APP_GPIO_INTR_CB_EVENT_FLAG) || glButtonPress)
-            {
-                while (glButtonPress)
-                {
-                    /* Send Input Report */
-                    //status = CyFxHidSendReport ();
-                    //if (status == CY_U3P_SUCCESS)
-                    //{
-                    //    glButtonPress--;
-                    //}
-                    //else
-                    //{
-                     //   CyU3PUsbStall (CY_FX_HID_EP_INTR_IN, CyTrue, CyFalse);
-                    //}
-                }
-            }
-        }
+
+    	CyFxHidSendReport();
+
     }
 }
 

@@ -41,6 +41,7 @@
          i.e. EP 1 is mapped to UIB socket 1 and EP 2 to socket 2 so on */
 
 #define CY_FX_HID_EP_INTR_IN                  (0x81)          /* EP 1 IN */
+#define CY_FX_HID_EP_INTR_OUT                  (0x01)          /* EP 1 IN */
 
 #define CY_FX_HID_THREAD_STACK                (0x1000)        /* HID application thread stack size */
 #define CY_FX_HID_THREAD_PRIORITY             (8)             /* HID application thread priority */
