@@ -88,12 +88,13 @@ int ButtonIndex=0;
 static CyU3PTimer ButtonChange;
 #define ButtonChangePeriod 1000
 //Every 2 seconds change the button map
-
+uint8_t timestamp=0x00;
 
 static void ButtonIndexChange(uint32_t arg){
 	ButtonIndex++;
 	if(ButtonIndex>9) ButtonIndex=0;
 }
+
 
 /* Application Error Handler */
 void CyFxAppErrorHandler(CyU3PReturnStatus_t apiRetStatus /* API return status */
@@ -193,7 +194,7 @@ void CyFxUsbHidApplnStart(void) {
 	//CyFxHidApplnGpioInit ();
 
 	dmaCfg.size = size;
-	dmaCfg.count = CY_FX_HID_DMA_BUF_COUNT;
+	dmaCfg.count = 4;
 	dmaCfg.prodSckId = CY_U3P_CPU_SOCKET_PROD;
 	dmaCfg.consSckId = (CyU3PDmaSocketId_t) CY_U3P_UIB_SOCKET_CONS_1;
 	dmaCfg.dmaMode = CY_U3P_DMA_MODE_BYTE;
@@ -213,7 +214,7 @@ void CyFxUsbHidApplnStart(void) {
 	}
 
 	dmaCfg.size = size;
-	dmaCfg.count = CY_FX_HID_DMA_BUF_COUNT;
+	dmaCfg.count = 10;
 	dmaCfg.prodSckId = CY_U3P_UIB_SOCKET_PROD_1;
 	dmaCfg.consSckId = (CyU3PDmaSocketId_t) CY_U3P_CPU_SOCKET_CONS;
 	dmaCfg.dmaMode = CY_U3P_DMA_MODE_BYTE;
@@ -291,7 +292,28 @@ void CyFxUsbHidApplnStop(void) {
 
 /* Send Reports containing pre-defined patterns to Host through interrupt EP */
 CyU3PReturnStatus_t CyFxHidSendReport(void) {
-	CyU3PReturnStatus_t status = CY_U3P_SUCCESS;
+	timestamp+=0x02;
+    CyU3PDmaBuffer_t DmaBuffer;
+    CyU3PReturnStatus_t status = CY_U3P_SUCCESS;
+    status = CyU3PDmaChannelGetBuffer (&glChHandleIntrU2CPU, &DmaBuffer, 10);
+	if (status != CY_U3P_SUCCESS) {
+			CyU3PDmaChannelReset(&glChHandleIntrCPU2U);
+			CyU3PDmaChannelSetXfer(&glChHandleIntrCPU2U, 0);
+	}
+	else
+    {
+    	if(DmaBuffer.buffer[0]==0x80)
+    	{
+    		committime=0;
+    	}
+    	if(DmaBuffer.buffer[0]==0x01)
+    	{
+    		committime=2;
+    	}
+    	status = CyU3PDmaChannelDiscardBuffer (&glChHandleIntrU2CPU);
+    }
+
+	//CyU3PReturnStatus_t status = CY_U3P_SUCCESS;
 	CyU3PDmaBuffer_t outBuf;
 	//uint16_t i = 0;
 
@@ -303,22 +325,15 @@ CyU3PReturnStatus_t CyFxHidSendReport(void) {
 	CyU3PDebugPrint(4, "Input Report \r\n");
 
 	/* Retrieve Free Buffer */
-	status = CyU3PDmaChannelGetBuffer(&glChHandleIntrCPU2U, &outBuf, 1000);
+	status = CyU3PDmaChannelGetBuffer(&glChHandleIntrCPU2U, &outBuf, 500);
 	if (status != CY_U3P_SUCCESS) {
-		CyU3PDmaChannelReset(&glChHandleIntrCPU2U);
-		CyU3PDmaChannelSetXfer(&glChHandleIntrCPU2U, 0);
-
-		status = CyU3PDmaChannelGetBuffer(&glChHandleIntrCPU2U, &outBuf, 1000);
-		if (status != CY_U3P_SUCCESS){
-			CyU3PDebugPrint(4, "Getbuffer failed \r\n");
-			return status;
-		}
-
+			CyU3PDmaChannelReset(&glChHandleIntrCPU2U);
+			CyU3PDmaChannelSetXfer(&glChHandleIntrCPU2U, 0);
 	} else {
 		if (committime == 0) {
 			CyU3PMemSet((uint8_t *) outBuf.buffer, 0, outBuf.size);
 			outBuf.buffer[0] = 0x81;
-			outBuf.buffer[1] = 0x01;
+			outBuf.buffer[1] = timestamp;
 			outBuf.buffer[3] = 0x03;
 			outBuf.buffer[4] = 0xEC;
 			outBuf.buffer[5] = 0x6B;
@@ -330,12 +345,13 @@ CyU3PReturnStatus_t CyFxHidSendReport(void) {
 		} else if (committime == 1) {
 			CyU3PMemSet((uint8_t *) outBuf.buffer, 0, outBuf.size);
 			outBuf.buffer[0] = 0x81;
-			outBuf.buffer[1] = 0x02;
-			committime++;
+			outBuf.buffer[1] = timestamp;
+			committime+=2;
 		} else if (committime == 2) {
+
 			CyU3PMemSet((uint8_t *) outBuf.buffer, 0, outBuf.size);
 			outBuf.buffer[0] = 0x21;
-			outBuf.buffer[1] = 0xF7;
+			outBuf.buffer[1] = timestamp;
 			outBuf.buffer[2] = 0x91;
 			outBuf.buffer[3] = 0x00;
 			outBuf.buffer[4] = 0x80;
@@ -350,6 +366,7 @@ CyU3PReturnStatus_t CyFxHidSendReport(void) {
 			outBuf.buffer[13] = 0x80;
 			outBuf.buffer[14] = 0x03;
 			outBuf.buffer[15] = 0x00;
+			CyU3PBusyWait(8000);
 
 			committime++;
 		} else {
@@ -358,15 +375,18 @@ CyU3PReturnStatus_t CyFxHidSendReport(void) {
 			for (int i = 0; i < 64; i++) {
 				outBuf.buffer[i] = ReportDataDefault[i];
 			}
-			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].DPAD_DOWN);
-			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].DPAD_UP<<1);
-			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].DPAD_RIGHT<<2);
-			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].DPAD_LEFT<<3);
 
-			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].SR<<4);
-			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].SL<<5);
-			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].SHOULDER_1<<6);
-			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].SHOULDER_2<<7);
+			outBuf.buffer[1] = timestamp;
+
+			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].DPAD_DOWN);
+			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].DPAD_UP<<1);
+			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].DPAD_RIGHT<<2);
+			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].DPAD_LEFT<<3);
+
+			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].SR<<4);
+			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].SL<<5);
+			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].SHOULDER_1<<6);
+			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].SHOULDER_2<<7);
 
 			outBuf.buffer[4]|=(uint8_t)(ButtonMap[ButtonIndex].HOME<<4);
 			outBuf.buffer[4]|=(uint8_t)(ButtonMap[ButtonIndex].CAPTURE<<5);
@@ -376,19 +396,19 @@ CyU3PReturnStatus_t CyFxHidSendReport(void) {
 //			outBuf.buffer[4]|=(uint8_t)(ButtonMap[ButtonIndex].STICK<<6);
 //			outBuf.buffer[4]|=(uint8_t)(ButtonMap[ButtonIndex].STICK2<<7);
 
-			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].B);
-			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].A<<2);
-			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].X<<1);
-			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].Y<<3);
-			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].SHOULDER2_1<<6);
-			outBuf.buffer[5]|=(uint8_t)(ButtonMap[ButtonIndex].SHOULDER2_2<<7);
+			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].B);
+			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].A<<2);
+			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].X<<1);
+			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].Y<<3);
+			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].SHOULDER2_1<<6);
+			outBuf.buffer[3]|=(uint8_t)(ButtonMap[ButtonIndex].SHOULDER2_2<<7);
 
 			CyU3PDebugPrint(4, "test %x %x %x \r\n", outBuf.buffer[3],outBuf.buffer[4],outBuf.buffer[5]);
 
 		}
 
 		/* Copy Report Data into the output buffer */
-
+		CyU3PBusyWait(8000);
 		status = CyU3PDmaChannelCommitBuffer(&glChHandleIntrCPU2U, 64, 0);
 		if (status != CY_U3P_SUCCESS) {
 			CyU3PDmaChannelReset(&glChHandleIntrCPU2U);
@@ -397,7 +417,7 @@ CyU3PReturnStatus_t CyFxHidSendReport(void) {
 	}
 	/* Wait for 2 msec after sending each packet */
 	//CyU3PDebugPrint(4, "Packet %d Status %d\r\n", i, status);
-	CyU3PBusyWait(16000);
+
 
 	return status;
 }
